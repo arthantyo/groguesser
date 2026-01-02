@@ -1,17 +1,7 @@
 import "./globals.css";
 
-import { Inter, Fredoka } from "next/font/google";
 import { ToastProvider } from "@/providers/Toast";
-
-export const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
-
-export const fredoka = Fredoka({
-  subsets: ["latin"],
-  variable: "--font-fredoka",
-});
+import { inter, fredoka } from "@/utils/fonts";
 
 export const metadata = {
   title: "GroGuesser",
