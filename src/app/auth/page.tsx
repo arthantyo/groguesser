@@ -22,6 +22,7 @@ export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState("");
+  const [success, setSuccess] = useState(false);
 
   const loginSchema = Yup.object({
     email: Yup.string().email("Invalid email").required("Email is empty"),
@@ -52,12 +53,14 @@ export default function AuthPage() {
         await register(values.username!, values.email, values.password);
       }
 
-      router.push("/menu");
-      // Redirect or update UI after successful login/register
+      // Show success state briefly before redirecting
+      setSuccess(true);
+      setTimeout(() => {
+        router.push("/menu");
+      }, 800);
     } catch (err: any) {
-      setFormError(err.message || "Something went wrong. Please try again.");
-    } finally {
       setLoading(false);
+      setFormError(err.message || "Something went wrong. Please try again.");
     }
   };
 
@@ -85,12 +88,19 @@ export default function AuthPage() {
           </h1>
 
           {formError && (
-            <div className="p-3 mb-4 text-red-500 bg-red-100 rounded">
+            <div className="p-3 mb-4 text-red-100 border bg-red-500/20 border-red-500/50 rounded-xl animate-shake">
               {formError}
             </div>
           )}
 
+          {success && (
+            <div className="p-3 mb-4 text-green-100 border bg-green-500/20 border-green-500/50 rounded-xl">
+              Success! Redirecting...
+            </div>
+          )}
+
           <Formik<AuthFormValues>
+            key={isLogin ? "login" : "register"} // Reset form when switching modes
             initialValues={{
               username: "",
               email: "",
@@ -114,8 +124,9 @@ export default function AuthPage() {
                       id="username"
                       name="username"
                       placeholder="Enter your username"
-                      disabled={loading}
-                      className="w-full p-4 text-white border rounded-xl bg-white/10 placeholder-white/60 border-white/20 focus:ring-2 focus:ring-purple-400 focus:outline-none disabled:opacity-50"
+                      disabled={loading || success}
+                      autoFocus
+                      className="w-full p-4 text-white border rounded-xl bg-white/10 placeholder-white/60 border-white/20 focus:ring-2 focus:ring-purple-400 focus:outline-none disabled:opacity-50 transition-all"
                     />
                     <ErrorMessage
                       name="username"
@@ -135,8 +146,9 @@ export default function AuthPage() {
                     type="email"
                     name="email"
                     placeholder="Enter your email"
-                    disabled={loading}
-                    className="w-full p-4 text-white border rounded-xl bg-white/10 placeholder-white/60 border-white/20 focus:ring-2 focus:ring-purple-400 focus:outline-none disabled:opacity-50"
+                    disabled={loading || success}
+                    autoFocus
+                    className="w-full p-4 text-white border rounded-xl bg-white/10 placeholder-white/60 border-white/20 focus:ring-2 focus:ring-purple-400 focus:outline-none disabled:opacity-50 transition-all"
                   />
                   <ErrorMessage
                     name="email"
@@ -155,8 +167,8 @@ export default function AuthPage() {
                     type="password"
                     name="password"
                     placeholder="Enter your password"
-                    disabled={loading}
-                    className="w-full p-4 text-white border rounded-xl bg-white/10 placeholder-white/60 border-white/20 focus:ring-2 focus:ring-purple-400 focus:outline-none disabled:opacity-50"
+                    disabled={loading || success}
+                    className="w-full p-4 text-white border rounded-xl bg-white/10 placeholder-white/60 border-white/20 focus:ring-2 focus:ring-purple-400 focus:outline-none disabled:opacity-50 transition-all"
                   />
                   <ErrorMessage
                     name="password"
@@ -179,8 +191,8 @@ export default function AuthPage() {
                       type="password"
                       name="retypePassword"
                       placeholder="Retype your password"
-                      disabled={loading}
-                      className="w-full p-4 text-white border rounded-xl bg-white/10 placeholder-white/60 border-white/20 focus:ring-2 focus:ring-purple-400 focus:outline-none disabled:opacity-50"
+                      disabled={loading || success}
+                      className="w-full p-4 text-white border rounded-xl bg-white/10 placeholder-white/60 border-white/20 focus:ring-2 focus:ring-purple-400 focus:outline-none disabled:opacity-50 transition-all"
                     />
                     <ErrorMessage
                       name="retypePassword"
@@ -193,8 +205,8 @@ export default function AuthPage() {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="relative w-full px-8 py-4 text-lg font-bold text-white transition-transform duration-300 shadow-lg rounded-2xl bg-gradient-to-r from-orange-400 via-pink-400 to-purple-500 hover:scale-[101%] disabled:opacity-50 flex items-center justify-center"
+                  disabled={loading || success}
+                  className="relative w-full px-8 py-4 text-lg font-bold text-white transition-all duration-300 shadow-lg rounded-2xl bg-gradient-to-r from-orange-400 via-pink-400 to-purple-500 hover:scale-[101%] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
                   {loading && (
                     <svg
@@ -219,13 +231,15 @@ export default function AuthPage() {
                     </svg>
                   )}
                   <span className="relative z-10">
-                    {loading
-                      ? isLogin
-                        ? "Logging in..."
-                        : "Registering..."
-                      : isLogin
-                      ? "Login"
-                      : "Register"}
+                    {success
+                      ? "Success!"
+                      : loading
+                        ? isLogin
+                          ? "Logging in..."
+                          : "Registering..."
+                        : isLogin
+                          ? "Login"
+                          : "Register"}
                   </span>
                 </button>
               </Form>
@@ -235,40 +249,18 @@ export default function AuthPage() {
           <p className="mt-6 text-center text-white/70">
             {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
             <button
-              className="font-semibold text-purple-400 hover:underline"
-              onClick={() => setIsLogin(!isLogin)}
+              className="font-semibold text-purple-400 hover:underline disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setFormError("");
+              }}
+              disabled={loading || success}
             >
               {isLogin ? "Register" : "Login"}
             </button>
           </p>
         </div>
       </div>
-
-      {/* Loading overlay */}
-      {loading && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50">
-          <svg
-            className="w-16 h-16 text-white animate-spin"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            ></circle>
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-            ></path>
-          </svg>
-        </div>
-      )}
     </div>
   );
 }
