@@ -39,58 +39,74 @@ export const useAuthStore = create<AuthState>()(
           }
 
           set({ profile: null });
-          
+
           // SECURITY: Clear game session from localStorage
           localStorage.removeItem("game-store");
         },
         login: async (email, password) => {
-          const form = new FormData();
-          form.append("email", email);
-          form.append("password", password);
+          try {
+            const form = new FormData();
+            form.append("email", email);
+            form.append("password", password);
 
-          const res = await fetch("/api/auth/login", {
-            method: "POST",
-            body: form,
-          });
+            const res = await fetch("/api/auth/login", {
+              method: "POST",
+              body: form,
+            });
 
-          const data = await res.json();
+            const data = await res.json();
 
-          if (!res.ok) {
-            throw new Error(data.error || `Login failed (${res.status})`);
+            if (!res.ok) {
+              console.error("Login failed:", data);
+              throw new Error(data.error || `Login failed (${res.status})`);
+            }
+
+            console.log("Login successful:", data);
+
+            set((state) => ({
+              profile: {
+                ...state.profile, // keep existing nested fields
+                id: data.userId,
+                playerId: data.playerId,
+              },
+            }));
+          } catch (error) {
+            console.error("Login error in store:", error);
+            throw error;
           }
-
-          set((state) => ({
-            profile: {
-              ...state.profile, // keep existing nested fields
-              id: data.userId,
-              playerId: data.playerId,
-            },
-          }));
         },
         register: async (username, email, password) => {
-          const form = new FormData();
-          form.append("username", username);
-          form.append("email", email);
-          form.append("password", password);
+          try {
+            const form = new FormData();
+            form.append("username", username);
+            form.append("email", email);
+            form.append("password", password);
 
-          const res = await fetch("/api/auth/register", {
-            method: "POST",
-            body: form,
-          });
+            const res = await fetch("/api/auth/register", {
+              method: "POST",
+              body: form,
+            });
 
-          const data = await res.json();
+            const data = await res.json();
 
-          if (!res.ok) {
-            throw new Error(data.error || "Registration failed");
+            if (!res.ok) {
+              console.error("Registration failed:", data);
+              throw new Error(data.error || "Registration failed");
+            }
+
+            console.log("Registration successful:", data);
+
+            set((state) => ({
+              profile: {
+                id: data.userId,
+                playerId: data.playerId,
+                username,
+              },
+            }));
+          } catch (error) {
+            console.error("Registration error in store:", error);
+            throw error;
           }
-
-          set((state) => ({
-            profile: {
-              id: data.userId,
-              playerId: data.playerId,
-              username,
-            },
-          }));
         },
         getProfile: async () => {
           const res = await fetch("/api/auth/profile", { cache: "no-store" });
@@ -120,8 +136,8 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "auth-store",
       partialize: (state) => ({ profile: state.profile }),
-    }
-  )
+    },
+  ),
 );
 export const useAuthStoreMethods = (): AuthStateMethods =>
   useAuthStore((state) => state.methods);

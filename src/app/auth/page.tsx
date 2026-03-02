@@ -42,24 +42,39 @@ export default function AuthPage() {
       .oneOf([Yup.ref("password")], "Passwords must match"),
   });
 
-  const handleSubmit = async (values: AuthFormValues) => {
+  const handleSubmit = async (
+    values: AuthFormValues,
+    { setSubmitting }: any,
+  ) => {
+    console.log("Form submitted with values:", {
+      email: values.email,
+      hasPassword: !!values.password,
+    });
     setLoading(true);
     setFormError("");
 
     try {
       if (isLogin) {
+        console.log("Attempting login...");
         await login(values.email, values.password);
+        console.log("Login successful");
       } else {
+        console.log("Attempting registration...");
         await register(values.username!, values.email, values.password);
+        console.log("Registration successful");
       }
 
       // Show success state briefly before redirecting
       setSuccess(true);
+      console.log("Setting success state, will redirect in 800ms");
       setTimeout(() => {
+        console.log("Redirecting to /menu");
         router.push("/menu");
       }, 800);
     } catch (err: any) {
+      console.error("Auth error:", err);
       setLoading(false);
+      setSubmitting(false);
       setFormError(err.message || "Something went wrong. Please try again.");
     }
   };
@@ -112,7 +127,7 @@ export default function AuthPage() {
             validateOnChange={false} // disables live validation while typing
             validateOnBlur={false}
           >
-            {({ values, isSubmitting }) => (
+            {({ values, isSubmitting, handleSubmit: formikHandleSubmit }) => (
               <Form className="flex flex-col w-full gap-5" noValidate>
                 {/* Username - only for registration */}
                 {!isLogin && (
@@ -205,7 +220,7 @@ export default function AuthPage() {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={loading || success}
+                  disabled={loading || success || isSubmitting}
                   className="relative w-full px-8 py-4 text-lg font-bold text-white transition-all duration-300 shadow-lg rounded-2xl bg-gradient-to-r from-orange-400 via-pink-400 to-purple-500 hover:scale-[101%] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
                   {loading && (
