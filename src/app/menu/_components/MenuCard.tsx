@@ -1,5 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import MenuCardOption from "./GameModeOption";
 import { useToast } from "@/providers/Toast";
 import { useGameStore, useGameStoreMethods } from "../../../store/game";
@@ -14,22 +15,29 @@ export default function MenuCard() {
   const { getProfile } = useAuthStoreMethods();
   const { showToast } = useToast();
 
+  // Load profile on mount if not available
+  useEffect(() => {
+    if (!profile) {
+      getProfile();
+    }
+  }, [profile, getProfile]);
+
   const handleComingSoon = () => {
     showToast("Map viewer is coming soon!", "info");
   };
 
   const handleStartSolo = async () => {
     if (!profile) {
-      getProfile();
+      showToast("Please wait, loading your profile...", "info");
       return;
     }
 
     try {
-      createSession({
+      await createSession({
         playerIds: [profile.playerId],
       });
 
-      // after session is created, redirect to /game
+      // Navigate to game after session is created
       router.push("/game");
     } catch (err) {
       console.error("Failed to start session:", err);

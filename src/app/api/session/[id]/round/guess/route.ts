@@ -8,12 +8,13 @@ import {
 } from "@/utils/game";
 import { Query } from "node-appwrite";
 import { getAdminServices } from "../../../../../../lib/appwrite/server";
+import { createSessionClient } from "../../../../../../lib/appwrite/client";
 import { appwriteConfig } from "../../../../../../utils/constants";
 
 /* Send the guess of current round */
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -24,113 +25,147 @@ export async function POST(
       return NextResponse.json({ error: "Missing data" }, { status: 400 });
     }
 
-    const { tables } = await getAdminServices();
+    // SECURITY: Verify authenticated user owns this session
+    try {
+      const { account } = await createSessionClient();
+      const user = await account.get();
 
-    const session = await tables.getRow({
-      databaseId: appwriteConfig.database.main.id,
-      tableId: appwriteConfig.database.main.tables.gameSession.id,
-      rowId: id,
-      queries: [Query.select(["*", "rounds.*"])],
-    });
+      const { tables } = await getAdminServices();
 
-    if (!session) {
-      return NextResponse.json({ error: "Session not found" }, { status: 404 });
-    }
-
-    if (session.status !== GameSessionStatus.ACTIVE) {
-      return NextResponse.json(
-        { error: "Session already ended" },
-        { status: 400 }
-      );
-    }
-
-    const round = session.rounds[session.currentRound];
-
-    const landmark = await tables.getRow({
-      databaseId: appwriteConfig.database.main.id,
-      tableId: appwriteConfig.database.main.tables.landmark.id,
-      rowId: round.landmark,
-    });
-
-    if (!landmark) {
-      return NextResponse.json(
-        { error: "Landmark not found" },
-        { status: 404 }
-      );
-    }
-
-    const guessLocation: GameLocation = { longitude, latitude };
-    const landmarkLocation: GameLocation = {
-      longitude: landmark.longitude,
-      latitude: landmark.latitude,
-    };
-
-    const distanceDiff = getDistanceMeters(landmarkLocation, guessLocation);
-    const score = calculateDistanceScore(landmarkLocation, guessLocation);
-
-    const decayConstant = 200;
-    const acc = 100 * Math.exp(-distanceDiff / decayConstant);
-
-    round.endedAt = new Date().toISOString();
-    round.guessLatitude = latitude;
-    round.guessLongitude = longitude;
-    round.score = score;
-    round.accuracy = Math.max(0, Math.min(100, acc));
-
-    await tables.updateRow({
-      databaseId: appwriteConfig.database.main.id,
-      tableId: appwriteConfig.database.main.tables.round.id,
-      rowId: round.$id,
-      data: {
-        endedAt: round.endedAt,
-        guessLongitude: round.guessLongitude,
-        guessLatitude: round.guessLatitude,
-        accuracy: round.accuracy,
-        score,
-      },
-    });
-
-    const isLastRound = session.currentRound == session.rounds.length - 1;
-
-    if (!isLastRound) {
-      console.log("update");
-      await tables.updateRow({
+      const session = await tables.getRow({
         databaseId: appwriteConfig.database.main.id,
         tableId: appwriteConfig.database.main.tables.gameSession.id,
-        rowId: session.$id,
-        data: { currentRound: session.currentRound + 1 },
+        rowId: id,
+        queries: [Query.select(["*", "rounds.*", "player.*"])],
       });
-    } else {
+
+      if (!session) {
+        return NextResponse.json(
+          { error: "Session not found" },
+          { status: 404 },
+        );
+      }
+
+      // SECURITY: Verify session belongs to authenticated user
+      const player = await tables.getRow({
+        databaseId: appwriteConfig.database.main.id,
+        tableId: appwriteConfig.database.main.tables.player.id,
+        rowId: session.player.$id,
+      });
+
+      if (player.userId !== user.$id) {
+        return NextResponse.json(
+          { error: "Unauthorized: This session does not belong to you" },
+          { status: 403 },
+        );
+      }
+
+      if (session.status !== GameSessionStatus.ACTIVE) {
+        return NextResponse.json(
+          { error: "Session already ended" },
+          { status: 400 },
+        );
+      }
+
+      const round = session.rounds[session.currentRound];
+
+      const landmark = await tables.getRow({
+        databaseId: appwriteConfig.database.main.id,
+        tableId: appwriteConfig.database.main.tables.landmark.id,
+        rowId: round.landmark,
+      });
+
+      if (!landmark) {
+        return NextResponse.json(
+          { error: "Landmark not found" },
+          { status: 404 },
+        );
+      }
+
+      const guessLocation: GameLocation = { longitude, latitude };
+      const landmarkLocation: GameLocation = {
+        longitude: landmark.longitude,
+        latitude: landmark.latitude,
+      };
+
+      const distanceDiff = getDistanceMeters(landmarkLocation, guessLocation);
+      const score = calculateDistanceScore(landmarkLocation, guessLocation);
+
+      const decayConstant = 200;
+      const acc = 100 * Math.exp(-distanceDiff / decayConstant);
+
+      round.endedAt = new Date().toISOString();
+      round.guessLatitude = latitude;
+      round.guessLongitude = longitude;
+      round.score = score;
+      round.accuracy = Math.max(0, Math.min(100, acc));
+
       await tables.updateRow({
         databaseId: appwriteConfig.database.main.id,
-        tableId: appwriteConfig.database.main.tables.gameSession.id,
-        rowId: session.$id,
-        data: { status: GameSessionStatus.ENDED },
-      });
-    }
-
-    return NextResponse.json({
-      data: {
-        endedAt: round.endedAt,
-        accuracy: acc,
-        distanceFromTarget: distanceDiff,
-        scoreReceived: score,
-        landmark: {
-          id: landmark.$id,
-          label: landmark.label,
-          longitude: landmark.longitude,
-          latitude: landmark.latitude,
-          imageUrl: landmark.imageUrl,
+        tableId: appwriteConfig.database.main.tables.round.id,
+        rowId: round.$id,
+        data: {
+          endedAt: round.endedAt,
+          guessLongitude: round.guessLongitude,
+          guessLatitude: round.guessLatitude,
+          accuracy: round.accuracy,
+          score,
         },
-        nextRoundIndex: !isLastRound ? session.currentRound + 1 : null,
-        sessionEnded: isLastRound,
-      },
-    });
+      });
+
+      const isLastRound = session.currentRound == session.rounds.length - 1;
+
+      if (!isLastRound) {
+        await tables.updateRow({
+          databaseId: appwriteConfig.database.main.id,
+          tableId: appwriteConfig.database.main.tables.gameSession.id,
+          rowId: session.$id,
+          data: { currentRound: session.currentRound + 1 },
+        });
+      } else {
+        await tables.updateRow({
+          databaseId: appwriteConfig.database.main.id,
+          tableId: appwriteConfig.database.main.tables.gameSession.id,
+          rowId: session.$id,
+          data: { status: GameSessionStatus.ENDED },
+        });
+      }
+
+      return NextResponse.json({
+        data: {
+          endedAt: round.endedAt,
+          accuracy: acc,
+          distanceFromTarget: distanceDiff,
+          scoreReceived: score,
+          landmark: {
+            id: landmark.$id,
+            label: landmark.label,
+            longitude: landmark.longitude,
+            latitude: landmark.latitude,
+            imageUrl: landmark.imageUrl,
+          },
+          nextRoundIndex: !isLastRound ? session.currentRound + 1 : null,
+          sessionEnded: isLastRound,
+        },
+      });
+    } catch (authError: any) {
+      // Handle authentication errors specifically
+      if (
+        authError.code === 401 ||
+        authError.message?.includes("Unauthorized")
+      ) {
+        return NextResponse.json(
+          { error: "Authentication required" },
+          { status: 401 },
+        );
+      }
+      throw authError; // Re-throw to be caught by outer catch
+    }
   } catch (error: any) {
     console.error("Error submitting guess:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

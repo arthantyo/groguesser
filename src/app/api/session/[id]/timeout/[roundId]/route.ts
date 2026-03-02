@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { getAdminServices } from "../../../../../../lib/appwrite/server";
+import { createSessionClient } from "../../../../../../lib/appwrite/client";
 import { Query } from "node-appwrite";
 import { appwriteConfig } from "../../../../../../utils/constants";
 import { GameSessionStatus } from "../../../../../../utils/game";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string; roundId: string }> }
+  { params }: { params: Promise<{ id: string; roundId: string }> },
 ) {
   try {
     const { id, roundId } = await params;
@@ -14,16 +15,23 @@ export async function GET(
     if (!id || !roundId) {
       return NextResponse.json(
         { error: "Missing sessionId or roundId" },
-        { status: 400 }
+        { status: 400 },
       );
     }
+
+    // SECURITY: Verify authenticated user owns this session
+    const { account } = await createSessionClient();
+    const user = await account.get();
 
     const { tables } = await getAdminServices();
 
     const sessionResult = await tables.listRows({
       databaseId: appwriteConfig.database.main.id,
       tableId: appwriteConfig.database.main.tables.gameSession.id,
-      queries: [Query.equal("$id", id), Query.select(["*", "rounds.*"])],
+      queries: [
+        Query.equal("$id", id),
+        Query.select(["*", "rounds.*", "player.*"]),
+      ],
     });
 
     if (sessionResult.total === 0) {
@@ -31,6 +39,20 @@ export async function GET(
     }
 
     const session = sessionResult.rows[0];
+
+    // SECURITY: Verify session belongs to authenticated user
+    const player = await tables.getRow({
+      databaseId: appwriteConfig.database.main.id,
+      tableId: appwriteConfig.database.main.tables.player.id,
+      rowId: session.player.$id,
+    });
+
+    if (player.userId !== user.$id) {
+      return NextResponse.json(
+        { error: "Unauthorized: This session does not belong to you" },
+        { status: 403 },
+      );
+    }
 
     if (session.status !== "ACTIVE") {
       return NextResponse.json({ error: "Session has ended" }, { status: 400 });
@@ -42,7 +64,7 @@ export async function GET(
     ) {
       return NextResponse.json(
         { error: "Invalid current round index" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -51,7 +73,7 @@ export async function GET(
     if (!currentRound.startedAt) {
       return NextResponse.json(
         { error: "Round has not started yet" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -64,7 +86,7 @@ export async function GET(
     if (landmarkResult.total === 0) {
       return NextResponse.json(
         { error: "Landmark not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -77,7 +99,7 @@ export async function GET(
     if (currentTime < roundEndTime) {
       return NextResponse.json(
         { error: "Round time is still ongoing" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -133,7 +155,7 @@ export async function GET(
     console.error("Error fetching current round:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -39,6 +39,9 @@ export const useAuthStore = create<AuthState>()(
           }
 
           set({ profile: null });
+          
+          // SECURITY: Clear game session from localStorage
+          localStorage.removeItem("game-store");
         },
         login: async (email, password) => {
           const form = new FormData();

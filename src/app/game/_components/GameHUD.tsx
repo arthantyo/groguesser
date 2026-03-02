@@ -85,31 +85,33 @@ export default function GameHUD() {
     fetchProfile();
   }, [userProfile?.id]);
 
-  // if (loading) {
-  //   return <>{LoaderOverlay}</>;
-  // }
-
-  if (!session) {
+  // Show loading spinner if session is being created/loaded
+  if (loading || !session) {
     return (
-      <div
-        className={`relative flex items-center justify-center w-full h-screen bg-gray-900 ${fredoka.className}`}
-      >
+      <div className="relative flex items-center justify-center w-full h-screen bg-gray-900">
         <Background />
-        <div className="z-10 flex flex-col items-center text-center">
-          <h1
-            className={`font-extrabold text-transparent text-7xl bg-clip-text bg-gradient-to-r from-purple-500 via-pink-500 to-yellow-400 drop-shadow-lg`}
+        <div className="z-10 flex flex-col items-center gap-4">
+          <svg
+            className="w-16 h-16 text-white animate-spin"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
           >
-            404
-          </h1>
-          <p className="mt-4 text-lg text-white/80">
-            Start a game session from the menu!
-          </p>
-          <Link
-            href="/menu"
-            className="inline-block px-6 py-3 mt-6 font-semibold text-white transition-transform duration-300 border shadow-md rounded-2xl bg-black/40 backdrop-blur-md border-white/20 hover:scale-105"
-          >
-            Back to menu
-          </Link>
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+            />
+          </svg>
+          <p className="text-white/70">Loading game session...</p>
         </div>
       </div>
     );

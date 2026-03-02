@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     if (!gameSetting) {
       return NextResponse.json(
         { error: "Missing gameSetting" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     if (!Array.isArray(playerIds) || playerIds.length === 0) {
       return NextResponse.json(
         { error: "Invalid or missing playerIds" },
-        { status: 400 }
+        { status: 400 },
       );
     }
     if (gameType != GameSessionType.SINGLE) {
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
           error:
             "Failed to create a session. ${gameType} mode is not available yet.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
         {
           error: "Unable to find player. Please go back to menu.",
         },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
     console.log(error);
     return NextResponse.json(
       { error: "Failed to start a game session" },
-      { status: error?.status || error?.code || 500 }
+      { status: error?.status || error?.code || 500 },
     );
   }
 }

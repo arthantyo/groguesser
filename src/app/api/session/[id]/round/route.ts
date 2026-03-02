@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Query } from "node-appwrite";
 import { getAdminServices } from "../../../../../lib/appwrite/server";
+import { createSessionClient } from "../../../../../lib/appwrite/client";
 import { appwriteConfig } from "../../../../../utils/constants";
 import { GameSessionStatus } from "../../../../../utils/game";
 
 // TODO: get a current round
 
-// TODO: implementing user check
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const id = (await params).id;
@@ -17,6 +17,10 @@ export async function GET(
     if (!id) {
       return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
     }
+
+    // SECURITY: Verify authenticated user owns this session
+    const { account } = await createSessionClient();
+    const user = await account.get();
 
     const { tables } = await getAdminServices();
 
@@ -27,27 +31,39 @@ export async function GET(
       queries: [
         Query.equal("$id", id),
         Query.limit(1),
-        Query.select(["*", "rounds.*"]),
+        Query.select(["*", "rounds.*", "player.*"]),
       ],
     });
 
     if (sessionResult.total === 0) {
       return NextResponse.json(
-        {
-          error: "Unable to find session. Please go back to menu.",
-        },
-        { status: 404 }
+        { error: "Unable to find session. Please go back to menu." },
+        { status: 404 },
       );
     }
 
     const session = sessionResult.rows[0];
+
+    // SECURITY: Verify session belongs to authenticated user
+    const player = await tables.getRow({
+      databaseId: appwriteConfig.database.main.id,
+      tableId: appwriteConfig.database.main.tables.player.id,
+      rowId: session.player.$id,
+    });
+
+    if (player.userId !== user.$id) {
+      return NextResponse.json(
+        { error: "Unauthorized: This session does not belong to you" },
+        { status: 403 },
+      );
+    }
 
     if (session.status == GameSessionStatus.ENDED) {
       return NextResponse.json(
         {
           error: "Game has ended!",
         },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -58,7 +74,7 @@ export async function GET(
         {
           error: "Game has ended!",
         },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -67,7 +83,7 @@ export async function GET(
     if (!round) {
       return NextResponse.json(
         { error: "Current round not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -119,7 +135,7 @@ export async function GET(
     console.error("Error getting current round:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
